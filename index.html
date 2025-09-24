@@ -304,8 +304,6 @@ class BarrelView {
     }
 
     // Dimensiones reales del canvas
-    // - En layout normal, el alto viene de aspect-ratio 16:9 (clientHeight calculado por el navegador)
-    // - En fullscreen, CSS fuerza width:100vw;height:100vh (usamos ese alto real)
     const cssW = c.clientWidth;
     const cssH = c.clientHeight || (cssW / (16/9));
     const dpr  = Math.min(window.devicePixelRatio||1, 2);
@@ -458,15 +456,18 @@ function renderList(items){
   });
 }
 
-m3uInput.addEventListener('change', async (e)=>{
-  const f = e.target.files[0]; if(!f) return;
-  const txt = await f.text();
-  const items = parseM3U(txt);
-  if(!items.length){ listEl.innerHTML = '<div class="warn">No se detectaron URLs en el archivo.</div>'; return; }
-  channelItems = items;
-  renderList(channelItems);
-});
+/* === Capturar DEMOS iniciales pintados en el DOM === */
+function captureDemoItemsFromDOM(){
+  const items = [];
+  listEl.querySelectorAll('.item').forEach(row=>{
+    const name = row.querySelector('.name')?.textContent?.trim() || 'Canal';
+    const url  = row.querySelector('.btns button')?.getAttribute('data-url') || '';
+    if(url) items.push({ nombre: name, url });
+  });
+  return items;
+}
 
+/* === Búsqueda en vivo === */
 searchEl.addEventListener('input', ()=>{
   const q = searchEl.value.trim().toLowerCase();
   if(!q){ renderList(channelItems); return; }
@@ -474,6 +475,7 @@ searchEl.addEventListener('input', ()=>{
   renderList(filtered);
 });
 
+/* === Colapsar / expandir === */
 toggleList.addEventListener('click', ()=>{
   const body = listWrap.querySelector('.list-body');
   const expanded = toggleList.getAttribute('aria-expanded') === 'true';
@@ -488,12 +490,14 @@ toggleList.addEventListener('click', ()=>{
   }
 });
 
-/* =================== Entradas por monitor =================== */
-document.querySelectorAll('.monitor').forEach(box=>{
-  const idx = parseInt(box.getAttribute('data-idx'),10);
-  const urlInput = box.querySelector('.u');
-  const loadBtn = box.querySelector('.load');
-  loadBtn.addEventListener('click', ()=> loadSourceInto(idx, urlInput.value.trim()));
+/* === Cargar archivo M3U manual === */
+m3uInput.addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const txt = await f.text();
+  const items = parseM3U(txt);
+  if(!items.length){ listEl.innerHTML = '<div class="warn">No se detectaron URLs en el archivo.</div>'; return; }
+  channelItems = items;
+  renderList(channelItems);
 });
 
 /* =================== Fullscreen & PiP por monitor =================== */
@@ -526,8 +530,67 @@ async function togglePiP(idx){
   }
 }
 
+/* =================== AUTO-CARGA favoritos.m3u =================== */
+const DEFAULT_M3U = ['update2.m3u'];
+
+async function fetchTextSafe(url){
+  try{
+    const res = await fetch(url, { cache: 'no-store' });
+    if(!res.ok) throw new Error(res.status + ' ' + res.statusText);
+    return await res.text();
+  }catch(err){
+    console.warn('Auto-M3U fallo:', url, err);
+    return null;
+  }
+}
+
+function dedupeByUrl(arr){
+  const seen = new Set();
+  const out = [];
+  for(const it of arr){
+    if(!it || !it.url) continue;
+    if(seen.has(it.url)) continue;
+    seen.add(it.url);
+    out.push(it);
+  }
+  return out;
+}
+
+async function autoLoadM3Us(){
+  // 1) Capturar demos actuales
+  const demo = captureDemoItemsFromDOM();
+
+  // 2) Intentar cargar favoritos.m3u (y otros si agregas)
+  let loaded = [];
+  for(const m3u of DEFAULT_M3U){
+    const txt = await fetchTextSafe(m3u);
+    if(!txt) continue;
+    const items = parseM3U(txt);
+    if(items?.length) loaded = loaded.concat(items);
+  }
+
+  // 3) Si no se cargó nada, mantenemos demos. Si sí, fusionamos y re-renderizamos
+  if(loaded.length){
+    channelItems = dedupeByUrl([...loaded, ...demo]);
+    renderList(channelItems);
+  }else{
+    channelItems = demo;
+  }
+}
+
+/* =================== Entradas por monitor =================== */
+document.querySelectorAll('.monitor').forEach(box=>{
+  const idx = parseInt(box.getAttribute('data-idx'),10);
+  const urlInput = box.querySelector('.u');
+  const loadBtn = box.querySelector('.load');
+  loadBtn.addEventListener('click', ()=> loadSourceInto(idx, urlInput.value.trim()));
+});
+
 /* =================== Init Único =================== */
-document.addEventListener('DOMContentLoaded', initMonitors);
+document.addEventListener('DOMContentLoaded', async ()=>{
+  initMonitors();
+  await autoLoadM3Us(); // auto-carga de favoritos.m3u al arrancar
+});
 </script>
 </body>
 </html>
