@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>4 Monitores · Barrel + FS + PiP + Búsqueda + Lista colapsable</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0e0e0e; color:#eaeaea; font-family:system-ui, sans-serif; }
+  header, main { max-width:1100px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; margin:6px 0 12px; }
+  .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .controls label { font-size:14px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap:14px; margin-top:16px; }
+  .monitor { background:#111; border:1px solid #333; border-radius:12px; padding:10px; position:relative; }
+  .title { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; font-weight:600; gap:8px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  canvas { width:100%; aspect-ratio:16/9; display:block; background:#000; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.45); }
+  .status { font-size:12px; opacity:.8; margin-top:6px; min-height:1.2em; }
+  .btn-sm { margin-left:4px; padding:4px 6px; border:1px solid #444; background:#1d1d1d; color:#eaeaea; border-radius:6px; cursor:pointer; }
+  .btn-sm:hover { filter:brightness(1.1); }
+  .u { width:260px; }
+
+  /* Lista de canales */
+  .list-wrap { margin-top:16px; border:1px solid #333; border-radius:10px; background:#141414; }
+  .list-head { display:flex; gap:8px; align-items:center; padding:10px; border-bottom:1px solid #2a2a2a; }
+  .list-head .spacer { flex:1; }
+  .list-head input[type="search"]{ flex:1; min-width:220px; padding:6px 8px; border:1px solid #333; border-radius:8px; background:#0e0e0e; color:#eaeaea; }
+  .list-body { max-height:320px; overflow:auto; padding:6px 10px; }
+  .item { display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px dashed #2a2a2a; }
+  .item:last-child { border-bottom:none; }
+  .name { font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60ch; }
+  .btns button { margin-left:4px; padding:4px 6px; border:1px solid #444; background:#1d1d1d; color:#eaeaea; border-radius:6px; cursor:pointer; }
+  .hl { color:#8fd14f; }
+  .warn { color:#ffb638; }
+
+  /* Fullscreen: el canvas ocupa el viewport completo y quita aspect-ratio */
+  .monitor:fullscreen { background:#000; border-color:#000; }
+  .monitor:fullscreen .title,
+  .monitor:fullscreen .status { display:none; }
+  .monitor:fullscreen canvas {
+    width:100vw !important;
+    height:100vh !important;
+    aspect-ratio:auto !important;
+    border-radius:0;
+    box-shadow:none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎛️ 4 Monitores con Distorsión Curva (Barrel) — Solo Video</h1>
+
+  <div class="controls">
+    <label>Intensidad:
+      <input id="strength" type="range" min="0" max="140" value="100">
+      <span id="vStr" class="hl">100</span>
+    </label>
+
+    <label>Dirección:
+      <select id="direction">
+        <option value="inout" selected>Adentro → Afuera (convexo)</option>
+        <option value="outin">Afuera → Adentro (invertido)</option>
+      </select>
+    </label>
+
+    <label><input id="flipY" type="checkbox" checked> Flip vertical</label>
+
+    <input id="m3uFile" type="file" accept=".m3u,.m3u8,.txt,.m3u8.txt" />
+  </div>
+
+  <!-- Panel de lista colapsable -->
+  <div class="list-wrap" id="listWrap">
+    <div class="list-head">
+      <strong>📋 Lista de canales</strong>
+      <div class="spacer"></div>
+      <input id="searchInput" type="search" placeholder="Buscar canal...">
+      <button id="toggleList" class="btn-sm" aria-expanded="true">Colapsar</button>
+    </div>
+    <div class="list-body" id="channelList">
+      <!-- Demos -->
+      <div class="item">
+        <div class="name">DEMO: Big Buck Bunny (MP4, CORS OK)</div>
+        <div class="btns">
+          <button data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">→1</button>
+          <button data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">→2</button>
+          <button data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">→3</button>
+          <button data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">→4</button>
+        </div>
+      </div>
+      <div class="item">
+        <div class="name">DEMO: BBB HLS (puede requerir CORS)</div>
+        <div class="btns">
+          <button data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">→1</button>
+          <button data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">→2</button>
+          <button data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">→3</button>
+          <button data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">→4</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <!-- MONITOR 1 -->
+    <div class="monitor" data-idx="0" id="monitor0">
+      <div class="title">
+        <span>Monitor 1</span>
+        <div class="row">
+          <input type="url" placeholder="Pega URL .m3u8/.mp4" class="u">
+          <button class="btn-sm load">Cargar</button>
+          <button class="btn-sm" onclick="toggleFullscreen(0)">⛶ FS</button>
+          <button class="btn-sm" onclick="togglePiP(0)">🧿 PiP</button>
+        </div>
+      </div>
+      <canvas id="canvas0"></canvas>
+      <div class="status" id="status0">(sin fuente)</div>
+      <video id="video0" crossorigin="anonymous" muted playsinline style="display:none"></video>
+    </div>
+
+    <!-- MONITOR 2 -->
+    <div class="monitor" data-idx="1" id="monitor1">
+      <div class="title">
+        <span>Monitor 2</span>
+        <div class="row">
+          <input type="url" placeholder="Pega URL .m3u8/.mp4" class="u">
+          <button class="btn-sm load">Cargar</button>
+          <button class="btn-sm" onclick="toggleFullscreen(1)">⛶ FS</button>
+          <button class="btn-sm" onclick="togglePiP(1)">🧿 PiP</button>
+        </div>
+      </div>
+      <canvas id="canvas1"></canvas>
+      <div class="status" id="status1">(sin fuente)</div>
+      <video id="video1" crossorigin="anonymous" muted playsinline style="display:none"></video>
+    </div>
+
+    <!-- MONITOR 3 -->
+    <div class="monitor" data-idx="2" id="monitor2">
+      <div class="title">
+        <span>Monitor 3</span>
+        <div class="row">
+          <input type="url" placeholder="Pega URL .m3u8/.mp4" class="u">
+          <button class="btn-sm load">Cargar</button>
+          <button class="btn-sm" onclick="toggleFullscreen(2)">⛶ FS</button>
+          <button class="btn-sm" onclick="togglePiP(2)">🧿 PiP</button>
+        </div>
+      </div>
+      <canvas id="canvas2"></canvas>
+      <div class="status" id="status2">(sin fuente)</div>
+      <video id="video2" crossorigin="anonymous" muted playsinline style="display:none"></video>
+    </div>
+
+    <!-- MONITOR 4 -->
+    <div class="monitor" data-idx="3" id="monitor3">
+      <div class="title">
+        <span>Monitor 4</span>
+        <div class="row">
+          <input type="url" placeholder="Pega URL .m3u8/.mp4" class="u">
+          <button class="btn-sm load">Cargar</button>
+          <button class="btn-sm" onclick="toggleFullscreen(3)">⛶ FS</button>
+          <button class="btn-sm" onclick="togglePiP(3)">🧿 PiP</button>
+        </div>
+      </div>
+      <canvas id="canvas3"></canvas>
+      <div class="status" id="status3">(sin fuente)</div>
+      <video id="video3" crossorigin="anonymous" muted playsinline style="display:none"></video>
+    </div>
+  </div>
+</main>
+
+<!-- HLS.js -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<script>
+/* =================== Barrel shader (WebGL) =================== */
+const VS = `
+  attribute vec2 a_pos;
+  attribute vec2 a_uv;
+  varying vec2 v_uv;
+  void main(){
+    v_uv = a_uv;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+  }`;
+const FS = `
+  precision mediump float;
+  varying vec2 v_uv;
+  uniform sampler2D u_tex;
+  uniform float u_k;        // intensidad firmada (+ adentro→afuera, - afuera→adentro)
+  uniform vec2  u_aspect;   // corrige radial por aspect ratio
+  uniform float u_flipY;    // 1.0 voltea vertical, 0.0 normal
+
+  vec2 barrel(vec2 uv0){
+    vec2 uv = vec2(uv0.x, mix(uv0.y, 1.0 - uv0.y, u_flipY));
+    vec2 c = uv - 0.5;
+    c *= u_aspect;
+    float r2 = dot(c,c);
+    c *= (1.0 + u_k * r2);
+    c /= u_aspect;
+    return c + 0.5;
+  }
+  void main(){
+    vec2 uv = barrel(v_uv);
+    if(any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))){
+      gl_FragColor = vec4(0.0,0.0,0.0,1.0);
+    } else {
+      gl_FragColor = texture2D(u_tex, uv);
+    }
+  }`;
+
+/* =================== Clase de vista por monitor =================== */
+class BarrelView {
+  constructor(canvas, video, statusEl){
+    this.canvas = canvas;
+    this.video = video;
+    this.statusEl = statusEl;
+    this.sign = +1.0; // +1 adentro→afuera, -1 afuera→adentro
+    this.strength = 100; // 0..140
+    this.flipY = true;
+
+    const gl = canvas.getContext('webgl', { premultipliedAlpha:false });
+    if(!gl) throw new Error('WebGL no soportado');
+    this.gl = gl;
+
+    // flip vertical para videos
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+    // compilar
+    const vs = this._compile(gl.VERTEX_SHADER, VS);
+    const fs = this._compile(gl.FRAGMENT_SHADER, FS);
+    this.prog = this._program(vs, fs);
+    gl.useProgram(this.prog);
+
+    // quad
+    const quad = new Float32Array([
+      -1,-1, 0,0,
+       1,-1, 1,0,
+      -1, 1, 0,1,
+       1, 1, 1,1
+    ]);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+    const a_pos = gl.getAttribLocation(this.prog, 'a_pos');
+    const a_uv  = gl.getAttribLocation(this.prog, 'a_uv');
+    gl.enableVertexAttribArray(a_pos);
+    gl.enableVertexAttribArray(a_uv);
+    gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 16, 0);
+    gl.vertexAttribPointer(a_uv,  2, gl.FLOAT, false, 16, 8);
+
+    // uniforms
+    this.u_tex    = gl.getUniformLocation(this.prog, 'u_tex');
+    this.u_k      = gl.getUniformLocation(this.prog, 'u_k');
+    this.u_aspect = gl.getUniformLocation(this.prog, 'u_aspect');
+    this.u_flipY  = gl.getUniformLocation(this.prog, 'u_flipY');
+
+    // textura + checker inicial
+    this.tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const checker = document.createElement('canvas');
+    checker.width = checker.height = 128;
+    const cx = checker.getContext('2d');
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+      cx.fillStyle = ((x+y)%2)?'#222':'#666';
+      cx.fillRect(x*16,y*16,16,16);
+    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, checker);
+
+    // listeners de video para status
+    video.addEventListener('canplay', ()=> this.status('✅ Listo'));
+    video.addEventListener('play',    ()=> this.status('▶ Reproduciendo'));
+    video.addEventListener('pause',   ()=> this.status('⏸ Pausa'));
+    video.addEventListener('error',   ()=> this.status('❌ Error video (CORS/autoplay)'));
+  }
+
+  _compile(type, src){ const gl = this.gl, s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){ throw new Error(gl.getShaderInfoLog(s)); }
+    return s; }
+  _program(vs, fs){ const gl = this.gl, p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if(!gl.getProgramParameter(p, gl.LINK_STATUS)){ throw new Error(gl.getProgramInfoLog(p)); }
+    return p; }
+
+  status(msg){ this.statusEl.textContent = msg; }
+
+  setDirection(mode){ this.sign = (mode === 'outin') ? -1.0 : +1.0; }
+  setStrength(v){ this.strength = v; }
+  setFlipY(flag){ this.flipY = !!flag; }
+
+  draw(){
+    const gl = this.gl, c = this.canvas, v = this.video;
+
+    // subir frame si listo
+    if (v.readyState >= 2 && v.videoWidth && v.videoHeight && !v.paused) {
+      gl.bindTexture(gl.TEXTURE_2D, this.tex);
+      try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v); }
+      catch(e){ /* CORS → se verá checker/negro */ }
+    }
+
+    // Dimensiones reales del canvas
+    // - En layout normal, el alto viene de aspect-ratio 16:9 (clientHeight calculado por el navegador)
+    // - En fullscreen, CSS fuerza width:100vw;height:100vh (usamos ese alto real)
+    const cssW = c.clientWidth;
+    const cssH = c.clientHeight || (cssW / (16/9));
+    const dpr  = Math.min(window.devicePixelRatio||1, 2);
+
+    const w = Math.max(1, Math.round(cssW*dpr));
+    const h = Math.max(1, Math.round(cssH*dpr));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    gl.viewport(0,0,w,h);
+
+    // aspect para corrección radial
+    const ar = w / h;
+    const aspectX = ar >= 1 ? ar : 1.0;
+    const aspectY = ar >= 1 ? 1.0 : 1.0/ar;
+
+    // intensidad mapeada
+    const k = (this.strength / 140.0) * this.sign;
+
+    gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.prog);
+    gl.uniform1i(this.u_tex, 0);
+    gl.uniform1f(this.u_k, k);
+    gl.uniform2f(this.u_aspect, aspectX, aspectY);
+    gl.uniform1f(this.u_flipY, this.flipY ? 1.0 : 0.0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}
+
+/* =================== App global (ÚNICO) =================== */
+const instances = []; // 4 BarrelView
+const strengthInput = document.getElementById('strength');
+const vStr          = document.getElementById('vStr');
+const directionSel  = document.getElementById('direction');
+const flipYCheck    = document.getElementById('flipY');
+
+function initMonitors(){
+  for(let i=0;i<4;i++){
+    const canvas = document.getElementById('canvas'+i);
+    const video  = document.getElementById('video'+i);
+    const status = document.getElementById('status'+i);
+    const inst = new BarrelView(canvas, video, status);
+    inst.setStrength(parseInt(strengthInput.value,10));
+    inst.setDirection(directionSel.value);
+    inst.setFlipY(flipYCheck.checked);
+    instances[i] = inst;
+  }
+  loop();
+}
+
+function loop(){
+  requestAnimationFrame(loop);
+  instances.forEach(v => v && v.draw());
+}
+
+/* ====== Bind de controles globales ====== */
+strengthInput.oninput = ()=>{
+  vStr.textContent = strengthInput.value;
+  const val = parseInt(strengthInput.value,10);
+  instances.forEach(v => v && v.setStrength(val));
+};
+directionSel.onchange = ()=>{
+  const mode = directionSel.value;
+  instances.forEach(v => v && v.setDirection(mode));
+};
+flipYCheck.onchange = ()=>{
+  const flag = flipYCheck.checked;
+  instances.forEach(v => v && v.setFlipY(flag));
+};
+
+/* =================== Cargar URLs / HLS =================== */
+function loadSourceInto(idx, url){
+  const v = document.getElementById('video'+idx);
+  const s = document.getElementById('status'+idx);
+  if (!url) return;
+  s.textContent = '⏳ Cargando…';
+
+  if (v.hlsInstance) { try { v.hlsInstance.destroy(); } catch(e){} v.hlsInstance = null; }
+
+  if (window.Hls && Hls.isSupported() && /\.m3u8?(\?|$)/i.test(url)) {
+    const hls = new Hls({ maxBufferLength: 30 });
+    hls.loadSource(url);
+    hls.attachMedia(v);
+    v.hlsInstance = hls;
+    hls.on(Hls.Events.MANIFEST_PARSED, ()=>{
+      v.muted = true;
+      v.play().catch(()=>{});
+      s.textContent = '✅ HLS listo';
+    });
+    hls.on(Hls.Events.ERROR, (_, data)=>{ s.textContent = '❌ HLS: ' + (data?.details || data?.type || 'error'); });
+  } else {
+    v.src = url;
+    v.onloadeddata = ()=>{ v.muted = true; v.play().catch(()=>{}); s.textContent = '✅ Listo'; };
+    v.onerror = ()=>{ s.textContent = '❌ Error al cargar fuente'; };
+  }
+}
+
+/* =================== Parser M3U =================== */
+function parseM3U(text) {
+  const clean = (text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const lines = clean.split('\n');
+  const out = [];
+  for (let i=0;i<lines.length;i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith('#EXTM3U')) continue;
+
+    if (line.startsWith('#EXTINF')) {
+      let name = 'Canal sin nombre';
+      const commaIdx = line.indexOf(',');
+      if (commaIdx !== -1 && commaIdx < line.length-1) {
+        name = line.slice(commaIdx+1).trim() || name;
+      }
+      const url = (lines[i+1] || '').trim();
+      if (url && /^https?:\/\//i.test(url)) { out.push({ nombre: name, url }); i++; }
+      continue;
+    }
+    if (/^https?:\/\//i.test(line)) {
+      out.push({ nombre: line.split('/').slice(-1)[0] || 'Canal', url: line });
+    }
+  }
+  return out;
+}
+
+/* =================== UI Lista M3U + Búsqueda + Colapsar =================== */
+const m3uInput   = document.getElementById('m3uFile');
+const listEl     = document.getElementById('channelList');
+const searchEl   = document.getElementById('searchInput');
+const toggleList = document.getElementById('toggleList');
+const listWrap   = document.getElementById('listWrap');
+
+let channelItems = []; // [{nombre,url}]
+
+function renderList(items){
+  listEl.innerHTML = items.map(c => `
+    <div class="item" data-name="${(c.nombre||'').toLowerCase()}">
+      <div class="name" title="${c.url}">${c.nombre}</div>
+      <div class="btns">
+        <button data-url="${c.url}">→1</button>
+        <button data-url="${c.url}">→2</button>
+        <button data-url="${c.url}">→3</button>
+        <button data-url="${c.url}">→4</button>
+      </div>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.btns button').forEach((btn, idx)=>{
+    btn.addEventListener('click', ()=>{
+      const url = btn.getAttribute('data-url');
+      const target = (idx % 4); // →1..→4 por fila
+      loadSourceInto(target, url);
+    });
+  });
+}
+
+m3uInput.addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const txt = await f.text();
+  const items = parseM3U(txt);
+  if(!items.length){ listEl.innerHTML = '<div class="warn">No se detectaron URLs en el archivo.</div>'; return; }
+  channelItems = items;
+  renderList(channelItems);
+});
+
+searchEl.addEventListener('input', ()=>{
+  const q = searchEl.value.trim().toLowerCase();
+  if(!q){ renderList(channelItems); return; }
+  const filtered = channelItems.filter(it => (it.nombre||'').toLowerCase().includes(q));
+  renderList(filtered);
+});
+
+toggleList.addEventListener('click', ()=>{
+  const body = listWrap.querySelector('.list-body');
+  const expanded = toggleList.getAttribute('aria-expanded') === 'true';
+  if(expanded){
+    body.style.display = 'none';
+    toggleList.textContent = 'Expandir';
+    toggleList.setAttribute('aria-expanded','false');
+  }else{
+    body.style.display = 'block';
+    toggleList.textContent = 'Colapsar';
+    toggleList.setAttribute('aria-expanded','true');
+  }
+});
+
+/* =================== Entradas por monitor =================== */
+document.querySelectorAll('.monitor').forEach(box=>{
+  const idx = parseInt(box.getAttribute('data-idx'),10);
+  const urlInput = box.querySelector('.u');
+  const loadBtn = box.querySelector('.load');
+  loadBtn.addEventListener('click', ()=> loadSourceInto(idx, urlInput.value.trim()));
+});
+
+/* =================== Fullscreen & PiP por monitor =================== */
+async function toggleFullscreen(idx){
+  const el = document.getElementById('monitor'+idx);
+  try{
+    if(document.fullscreenElement){
+      await document.exitFullscreen();
+    }else{
+      await el.requestFullscreen({ navigationUI: 'hide' });
+    }
+  }catch(e){ console.warn('FS error', e); }
+}
+
+async function togglePiP(idx){
+  const v = document.getElementById('video'+idx);
+  try{
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+      return;
+    }
+    if (v.paused) { await v.play().catch(()=>{}); }
+    const oldDisplay = v.style.display;
+    v.style.display = 'block';
+    await v.requestPictureInPicture();
+    v.addEventListener('enterpictureinpicture', ()=>{ v.style.display = oldDisplay; }, { once:true });
+  }catch(e){
+    console.warn('PiP error', e);
+    alert('Tu navegador no permite PiP aquí.');
+  }
+}
+
+/* =================== Init Único =================== */
+document.addEventListener('DOMContentLoaded', initMonitors);
+</script>
+</body>
+</html>
