@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
-<title>4 Monitores · Barrel + FS + PiP + Búsqueda + Lista colapsable</title>
+<title>4 Monitores · Barrel + FS + PiP + Búsqueda + Lista + Volumen</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root { color-scheme: dark; }
@@ -20,6 +20,7 @@
   .btn-sm { margin-left:4px; padding:4px 6px; border:1px solid #444; background:#1d1d1d; color:#eaeaea; border-radius:6px; cursor:pointer; }
   .btn-sm:hover { filter:brightness(1.1); }
   .u { width:260px; }
+  .vol { width:120px; vertical-align:middle; }
 
   /* Lista de canales */
   .list-wrap { margin-top:16px; border:1px solid #333; border-radius:10px; background:#141414; }
@@ -34,11 +35,9 @@
   .hl { color:#8fd14f; }
   .warn { color:#ffb638; }
 
-  /* Fullscreen: el canvas ocupa el viewport completo y quita aspect-ratio */
-  .monitor:fullscreen { background:#000; border-color:#000; }
-  .monitor:fullscreen .title,
-  .monitor:fullscreen .status { display:none; }
-  .monitor:fullscreen canvas {
+  /* Fullscreen en canvas (estándar + Safari) */
+  canvas:fullscreen,
+  canvas:-webkit-full-screen {
     width:100vw !important;
     height:100vh !important;
     aspect-ratio:auto !important;
@@ -49,7 +48,7 @@
 </head>
 <body>
 <header>
-  <h1>🎛️ 4 Monitores con Distorsión Curva (Barrel) — Solo Video</h1>
+  <h1>🎛️ 4 Monitores con Distorsión + Volumen + FS + PiP</h1>
 
   <div class="controls">
     <label>Intensidad:
@@ -66,10 +65,17 @@
 
     <label><input id="flipY" type="checkbox" checked> Flip vertical</label>
 
+    <!-- Volumen global -->
+    <label>Volumen global:
+      <input id="volMaster" type="range" min="0" max="100" value="60" class="vol">
+      <span id="volMasterVal" class="hl">60</span>
+    </label>
+    <button id="unmuteAll" class="btn-sm">🔊 Activar sonido en todos</button>
+
     <input id="m3uFile" type="file" accept=".m3u,.m3u8,.txt,.m3u8.txt" />
   </div>
 
-  <!-- Panel de lista colapsable -->
+  <!-- Lista colapsable -->
   <div class="list-wrap" id="listWrap">
     <div class="list-head">
       <strong>📋 Lista de canales</strong>
@@ -112,11 +118,15 @@
           <button class="btn-sm load">Cargar</button>
           <button class="btn-sm" onclick="toggleFullscreen(0)">⛶ FS</button>
           <button class="btn-sm" onclick="togglePiP(0)">🧿 PiP</button>
+          <button class="btn-sm" onclick="toggleMute(0)" id="muteBtn0">🔇</button>
+          <label>Vol:
+            <input type="range" min="0" max="100" value="60" class="vol" oninput="setVolume(0, this.value)" id="vol0">
+          </label>
         </div>
       </div>
       <canvas id="canvas0"></canvas>
       <div class="status" id="status0">(sin fuente)</div>
-      <video id="video0" crossorigin="anonymous" muted playsinline style="display:none"></video>
+      <video id="video0" crossorigin="anonymous" muted playsinline preload="auto" style="position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;opacity:0"></video>
     </div>
 
     <!-- MONITOR 2 -->
@@ -128,11 +138,15 @@
           <button class="btn-sm load">Cargar</button>
           <button class="btn-sm" onclick="toggleFullscreen(1)">⛶ FS</button>
           <button class="btn-sm" onclick="togglePiP(1)">🧿 PiP</button>
+          <button class="btn-sm" onclick="toggleMute(1)" id="muteBtn1">🔇</button>
+          <label>Vol:
+            <input type="range" min="0" max="100" value="60" class="vol" oninput="setVolume(1, this.value)" id="vol1">
+          </label>
         </div>
       </div>
       <canvas id="canvas1"></canvas>
       <div class="status" id="status1">(sin fuente)</div>
-      <video id="video1" crossorigin="anonymous" muted playsinline style="display:none"></video>
+      <video id="video1" crossorigin="anonymous" muted playsinline preload="auto" style="position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;opacity:0"></video>
     </div>
 
     <!-- MONITOR 3 -->
@@ -144,11 +158,15 @@
           <button class="btn-sm load">Cargar</button>
           <button class="btn-sm" onclick="toggleFullscreen(2)">⛶ FS</button>
           <button class="btn-sm" onclick="togglePiP(2)">🧿 PiP</button>
+          <button class="btn-sm" onclick="toggleMute(2)" id="muteBtn2">🔇</button>
+          <label>Vol:
+            <input type="range" min="0" max="100" value="60" class="vol" oninput="setVolume(2, this.value)" id="vol2">
+          </label>
         </div>
       </div>
       <canvas id="canvas2"></canvas>
       <div class="status" id="status2">(sin fuente)</div>
-      <video id="video2" crossorigin="anonymous" muted playsinline style="display:none"></video>
+      <video id="video2" crossorigin="anonymous" muted playsinline preload="auto" style="position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;opacity:0"></video>
     </div>
 
     <!-- MONITOR 4 -->
@@ -160,11 +178,15 @@
           <button class="btn-sm load">Cargar</button>
           <button class="btn-sm" onclick="toggleFullscreen(3)">⛶ FS</button>
           <button class="btn-sm" onclick="togglePiP(3)">🧿 PiP</button>
+          <button class="btn-sm" onclick="toggleMute(3)" id="muteBtn3">🔇</button>
+          <label>Vol:
+            <input type="range" min="0" max="100" value="60" class="vol" oninput="setVolume(3, this.value)" id="vol3">
+          </label>
         </div>
       </div>
       <canvas id="canvas3"></canvas>
       <div class="status" id="status3">(sin fuente)</div>
-      <video id="video3" crossorigin="anonymous" muted playsinline style="display:none"></video>
+      <video id="video3" crossorigin="anonymous" muted playsinline preload="auto" style="position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;opacity:0"></video>
     </div>
   </div>
 </main>
@@ -186,9 +208,9 @@ const FS = `
   precision mediump float;
   varying vec2 v_uv;
   uniform sampler2D u_tex;
-  uniform float u_k;        // intensidad firmada (+ adentro→afuera, - afuera→adentro)
-  uniform vec2  u_aspect;   // corrige radial por aspect ratio
-  uniform float u_flipY;    // 1.0 voltea vertical, 0.0 normal
+  uniform float u_k;
+  uniform vec2  u_aspect;
+  uniform float u_flipY;
 
   vec2 barrel(vec2 uv0){
     vec2 uv = vec2(uv0.x, mix(uv0.y, 1.0 - uv0.y, u_flipY));
@@ -214,24 +236,21 @@ class BarrelView {
     this.canvas = canvas;
     this.video = video;
     this.statusEl = statusEl;
-    this.sign = +1.0; // +1 adentro→afuera, -1 afuera→adentro
-    this.strength = 100; // 0..140
+    this.sign = +1.0;
+    this.strength = 100;
     this.flipY = true;
 
     const gl = canvas.getContext('webgl', { premultipliedAlpha:false });
     if(!gl) throw new Error('WebGL no soportado');
     this.gl = gl;
 
-    // flip vertical para videos
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
-    // compilar
     const vs = this._compile(gl.VERTEX_SHADER, VS);
     const fs = this._compile(gl.FRAGMENT_SHADER, FS);
     this.prog = this._program(vs, fs);
     gl.useProgram(this.prog);
 
-    // quad
     const quad = new Float32Array([
       -1,-1, 0,0,
        1,-1, 1,0,
@@ -248,19 +267,18 @@ class BarrelView {
     gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 16, 0);
     gl.vertexAttribPointer(a_uv,  2, gl.FLOAT, false, 16, 8);
 
-    // uniforms
     this.u_tex    = gl.getUniformLocation(this.prog, 'u_tex');
     this.u_k      = gl.getUniformLocation(this.prog, 'u_k');
     this.u_aspect = gl.getUniformLocation(this.prog, 'u_aspect');
     this.u_flipY  = gl.getUniformLocation(this.prog, 'u_flipY');
 
-    // textura + checker inicial
     this.tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
     const checker = document.createElement('canvas');
     checker.width = checker.height = 128;
     const cx = checker.getContext('2d');
@@ -270,7 +288,6 @@ class BarrelView {
     }
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, checker);
 
-    // listeners de video para status
     video.addEventListener('canplay', ()=> this.status('✅ Listo'));
     video.addEventListener('play',    ()=> this.status('▶ Reproduciendo'));
     video.addEventListener('pause',   ()=> this.status('⏸ Pausa'));
@@ -280,15 +297,16 @@ class BarrelView {
   _compile(type, src){ const gl = this.gl, s = gl.createShader(type);
     gl.shaderSource(s, src); gl.compileShader(s);
     if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){ throw new Error(gl.getShaderInfoLog(s)); }
-    return s; }
+    return s;
+  }
   _program(vs, fs){ const gl = this.gl, p = gl.createProgram();
     gl.attachShader(p, vs); gl.attachShader(p, fs);
     gl.linkProgram(p);
     if(!gl.getProgramParameter(p, gl.LINK_STATUS)){ throw new Error(gl.getProgramInfoLog(p)); }
-    return p; }
+    return p;
+  }
 
   status(msg){ this.statusEl.textContent = msg; }
-
   setDirection(mode){ this.sign = (mode === 'outin') ? -1.0 : +1.0; }
   setStrength(v){ this.strength = v; }
   setFlipY(flag){ this.flipY = !!flag; }
@@ -296,29 +314,24 @@ class BarrelView {
   draw(){
     const gl = this.gl, c = this.canvas, v = this.video;
 
-    // subir frame si listo
     if (v.readyState >= 2 && v.videoWidth && v.videoHeight && !v.paused) {
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v); }
-      catch(e){ /* CORS → se verá checker/negro */ }
+      catch(e){ /* CORS */ }
     }
 
-    // Dimensiones reales del canvas
     const cssW = c.clientWidth;
     const cssH = c.clientHeight || (cssW / (16/9));
     const dpr  = Math.min(window.devicePixelRatio||1, 2);
-
     const w = Math.max(1, Math.round(cssW*dpr));
     const h = Math.max(1, Math.round(cssH*dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     gl.viewport(0,0,w,h);
 
-    // aspect para corrección radial
     const ar = w / h;
     const aspectX = ar >= 1 ? ar : 1.0;
     const aspectY = ar >= 1 ? 1.0 : 1.0/ar;
 
-    // intensidad mapeada
     const k = (this.strength / 140.0) * this.sign;
 
     gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
@@ -331,8 +344,8 @@ class BarrelView {
   }
 }
 
-/* =================== App global (ÚNICO) =================== */
-const instances = []; // 4 BarrelView
+/* =================== App global =================== */
+const instances = [];
 const strengthInput = document.getElementById('strength');
 const vStr          = document.getElementById('vStr');
 const directionSel  = document.getElementById('direction');
@@ -347,17 +360,15 @@ function initMonitors(){
     inst.setStrength(parseInt(strengthInput.value,10));
     inst.setDirection(directionSel.value);
     inst.setFlipY(flipYCheck.checked);
+    const volEl = document.getElementById('vol'+i);
+    if (volEl) { video.volume = volEl.value/100; }
     instances[i] = inst;
   }
   loop();
 }
+function loop(){ requestAnimationFrame(loop); instances.forEach(v => v && v.draw()); }
 
-function loop(){
-  requestAnimationFrame(loop);
-  instances.forEach(v => v && v.draw());
-}
-
-/* ====== Bind de controles globales ====== */
+/* ====== Controles globales ====== */
 strengthInput.oninput = ()=>{
   vStr.textContent = strengthInput.value;
   const val = parseInt(strengthInput.value,10);
@@ -372,6 +383,57 @@ flipYCheck.onchange = ()=>{
   instances.forEach(v => v && v.setFlipY(flag));
 };
 
+/* ====== Volumen: global ====== */
+const volMaster = document.getElementById('volMaster');
+const volMasterVal = document.getElementById('volMasterVal');
+const unmuteAllBtn = document.getElementById('unmuteAll');
+
+volMaster.addEventListener('input', ()=>{
+  const val = parseInt(volMaster.value, 10);
+  volMasterVal.textContent = String(val);
+  for(let i=0;i<4;i++){
+    const v = document.getElementById('video'+i);
+    v.volume = val/100;
+    if (val > 0) { v.muted = false; }
+    updateMuteBtn(i);
+  }
+});
+
+unmuteAllBtn.addEventListener('click', async ()=>{
+  for(let i=0;i<4;i++){
+    const v = document.getElementById('video'+i);
+    v.muted = false;
+    try { await v.play(); } catch(_) {}
+    updateMuteBtn(i);
+  }
+});
+
+/* ====== Volumen: por monitor ====== */
+function updateMuteBtn(idx){
+  const v = document.getElementById('video'+idx);
+  const btn = document.getElementById('muteBtn'+idx);
+  if (!btn) return;
+  btn.textContent = v.muted || v.volume === 0 ? '🔇' : '🔊';
+}
+async function toggleMute(idx){
+  const v = document.getElementById('video'+idx);
+  v.muted = !v.muted;
+  if (!v.muted && v.paused){
+    try { await v.play(); } catch(_) {}
+  }
+  updateMuteBtn(idx);
+}
+async function setVolume(idx, val){
+  const v = document.getElementById('video'+idx);
+  const vol = Math.max(0, Math.min(100, parseInt(val,10))) / 100;
+  v.volume = vol;
+  if (vol > 0) v.muted = false;
+  if (v.paused){
+    try { await v.play(); } catch(_) {}
+  }
+  updateMuteBtn(idx);
+}
+
 /* =================== Cargar URLs / HLS =================== */
 function loadSourceInto(idx, url){
   const v = document.getElementById('video'+idx);
@@ -381,20 +443,23 @@ function loadSourceInto(idx, url){
 
   if (v.hlsInstance) { try { v.hlsInstance.destroy(); } catch(e){} v.hlsInstance = null; }
 
+  // autoplay: iniciar muteado (el usuario puede activar sonido)
+  v.muted = true;
+
   if (window.Hls && Hls.isSupported() && /\.m3u8?(\?|$)/i.test(url)) {
     const hls = new Hls({ maxBufferLength: 30 });
     hls.loadSource(url);
     hls.attachMedia(v);
     v.hlsInstance = hls;
     hls.on(Hls.Events.MANIFEST_PARSED, ()=>{
-      v.muted = true;
       v.play().catch(()=>{});
       s.textContent = '✅ HLS listo';
+      updateMuteBtn(idx);
     });
     hls.on(Hls.Events.ERROR, (_, data)=>{ s.textContent = '❌ HLS: ' + (data?.details || data?.type || 'error'); });
   } else {
     v.src = url;
-    v.onloadeddata = ()=>{ v.muted = true; v.play().catch(()=>{}); s.textContent = '✅ Listo'; };
+    v.onloadeddata = ()=>{ v.play().catch(()=>{}); s.textContent = '✅ Listo'; updateMuteBtn(idx); };
     v.onerror = ()=>{ s.textContent = '❌ Error al cargar fuente'; };
   }
 }
@@ -425,14 +490,14 @@ function parseM3U(text) {
   return out;
 }
 
-/* =================== UI Lista M3U + Búsqueda + Colapsar =================== */
+/* =================== Lista + búsqueda + colapsar =================== */
 const m3uInput   = document.getElementById('m3uFile');
 const listEl     = document.getElementById('channelList');
 const searchEl   = document.getElementById('searchInput');
 const toggleList = document.getElementById('toggleList');
 const listWrap   = document.getElementById('listWrap');
 
-let channelItems = []; // [{nombre,url}]
+let channelItems = [];
 
 function renderList(items){
   listEl.innerHTML = items.map(c => `
@@ -450,13 +515,12 @@ function renderList(items){
   listEl.querySelectorAll('.btns button').forEach((btn, idx)=>{
     btn.addEventListener('click', ()=>{
       const url = btn.getAttribute('data-url');
-      const target = (idx % 4); // →1..→4 por fila
+      const target = (idx % 4);
       loadSourceInto(target, url);
     });
   });
 }
 
-/* === Capturar DEMOS iniciales pintados en el DOM === */
 function captureDemoItemsFromDOM(){
   const items = [];
   listEl.querySelectorAll('.item').forEach(row=>{
@@ -467,7 +531,6 @@ function captureDemoItemsFromDOM(){
   return items;
 }
 
-/* === Búsqueda en vivo === */
 searchEl.addEventListener('input', ()=>{
   const q = searchEl.value.trim().toLowerCase();
   if(!q){ renderList(channelItems); return; }
@@ -475,7 +538,6 @@ searchEl.addEventListener('input', ()=>{
   renderList(filtered);
 });
 
-/* === Colapsar / expandir === */
 toggleList.addEventListener('click', ()=>{
   const body = listWrap.querySelector('.list-body');
   const expanded = toggleList.getAttribute('aria-expanded') === 'true';
@@ -490,7 +552,6 @@ toggleList.addEventListener('click', ()=>{
   }
 });
 
-/* === Cargar archivo M3U manual === */
 m3uInput.addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if(!f) return;
   const txt = await f.text();
@@ -500,67 +561,22 @@ m3uInput.addEventListener('change', async (e)=>{
   renderList(channelItems);
 });
 
-/* =================== Fullscreen & PiP por monitor =================== */
-async function toggleFullscreen(idx){
-  const el = document.getElementById('monitor'+idx);
-  try{
-    if(document.fullscreenElement){
-      await document.exitFullscreen();
-    }else{
-      await el.requestFullscreen({ navigationUI: 'hide' });
-    }
-  }catch(e){ console.warn('FS error', e); }
-}
-
-async function togglePiP(idx){
-  const v = document.getElementById('video'+idx);
-  try{
-    if (document.pictureInPictureElement) {
-      await document.exitPictureInPicture();
-      return;
-    }
-    if (v.paused) { await v.play().catch(()=>{}); }
-    const oldDisplay = v.style.display;
-    v.style.display = 'block';
-    await v.requestPictureInPicture();
-    v.addEventListener('enterpictureinpicture', ()=>{ v.style.display = oldDisplay; }, { once:true });
-  }catch(e){
-    console.warn('PiP error', e);
-    alert('Tu navegador no permite PiP aquí.');
-  }
-}
-
-/* =================== AUTO-CARGA favoritos.m3u =================== */
-const DEFAULT_M3U = ['update2.m3u'];
-
+/* =================== Auto-carga favoritos.m3u =================== */
+const DEFAULT_M3U = ['favoritos.m3u'];
 async function fetchTextSafe(url){
   try{
     const res = await fetch(url, { cache: 'no-store' });
     if(!res.ok) throw new Error(res.status + ' ' + res.statusText);
     return await res.text();
-  }catch(err){
-    console.warn('Auto-M3U fallo:', url, err);
-    return null;
-  }
+  }catch(err){ console.warn('Auto-M3U fallo:', url, err); return null; }
 }
-
 function dedupeByUrl(arr){
-  const seen = new Set();
-  const out = [];
-  for(const it of arr){
-    if(!it || !it.url) continue;
-    if(seen.has(it.url)) continue;
-    seen.add(it.url);
-    out.push(it);
-  }
+  const seen = new Set(); const out = [];
+  for(const it of arr){ if(it?.url && !seen.has(it.url)){ seen.add(it.url); out.push(it); } }
   return out;
 }
-
 async function autoLoadM3Us(){
-  // 1) Capturar demos actuales
   const demo = captureDemoItemsFromDOM();
-
-  // 2) Intentar cargar favoritos.m3u (y otros si agregas)
   let loaded = [];
   for(const m3u of DEFAULT_M3U){
     const txt = await fetchTextSafe(m3u);
@@ -568,14 +584,8 @@ async function autoLoadM3Us(){
     const items = parseM3U(txt);
     if(items?.length) loaded = loaded.concat(items);
   }
-
-  // 3) Si no se cargó nada, mantenemos demos. Si sí, fusionamos y re-renderizamos
-  if(loaded.length){
-    channelItems = dedupeByUrl([...loaded, ...demo]);
-    renderList(channelItems);
-  }else{
-    channelItems = demo;
-  }
+  channelItems = loaded.length ? dedupeByUrl([...loaded, ...demo]) : demo;
+  renderList(channelItems);
 }
 
 /* =================== Entradas por monitor =================== */
@@ -586,10 +596,65 @@ document.querySelectorAll('.monitor').forEach(box=>{
   loadBtn.addEventListener('click', ()=> loadSourceInto(idx, urlInput.value.trim()));
 });
 
-/* =================== Init Único =================== */
+/* =================== Fullscreen (sobre canvas) & PiP =================== */
+async function toggleFullscreen(idx){
+  const canvas = document.getElementById('canvas'+idx);
+  try{
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if(fsEl){
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else {
+      if (canvas.requestFullscreen) await canvas.requestFullscreen({ navigationUI: 'hide' });
+      else if (canvas.webkitRequestFullscreen) canvas.webkitRequestFullscreen();
+    }
+  }catch(e){ console.warn('FS error', e); }
+}
+
+async function togglePiP(idx){
+  const v = document.getElementById('video'+idx);
+  try{
+    // Safari fallback
+    if ('webkitSetPresentationMode' in v) {
+      if (v.paused) { try{ await v.play(); }catch(_){} }
+      const mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+      v.webkitSetPresentationMode(mode);
+      return;
+    }
+    // Soporte estándar
+    if (!('pictureInPictureEnabled' in document) || v.disablePictureInPicture) {
+      alert('Tu navegador no soporta Picture-in-Picture.');
+      return;
+    }
+    // Si hay otro PiP activo
+    if (document.pictureInPictureElement && document.pictureInPictureElement !== v) {
+      await document.exitPictureInPicture();
+    }
+    // Salir si ya está en PiP este mismo
+    if (document.pictureInPictureElement === v) {
+      await document.exitPictureInPicture();
+      return;
+    }
+
+    // Asegurar visibilidad temporal y escuchar antes de pedir PiP
+    const prevDisplay = v.style.display;
+    v.style.display = 'block';
+    const onEnter = () => { v.style.display = prevDisplay; v.removeEventListener('enterpictureinpicture', onEnter); };
+    v.addEventListener('enterpictureinpicture', onEnter);
+
+    if (v.paused) { try{ await v.play(); }catch(_){} }
+    await v.requestPictureInPicture();
+  }catch(e){
+    console.warn('PiP error', e);
+    alert('No se pudo activar PiP en este monitor.');
+  }
+}
+
+/* =================== Init =================== */
 document.addEventListener('DOMContentLoaded', async ()=>{
   initMonitors();
-  await autoLoadM3Us(); // auto-carga de favoritos.m3u al arrancar
+  await autoLoadM3Us();
+  for(let i=0;i<4;i++) updateMuteBtn(i);
 });
 </script>
 </body>
